@@ -350,7 +350,7 @@ class Profiler:
         nb_ui_cells: list[WebElement] = self.driver.find_elements(
             By.CSS_SELECTOR, self.NB_CELLS_SELECTOR
         )
-
+        nb_ui_cells = [cell for cell in nb_ui_cells if cell.text.strip() != ""]
         # Ensure the number of collected cells matches the expected total cells
         assert len(nb_ui_cells) == self.metrics.total_cells
 
@@ -487,9 +487,7 @@ class Profiler:
         for attempt in range(max_retries):
             try:
                 WebDriverWait(self.driver, timeout=retry_delay, poll_frequency=1).until(
-                    EC.visibility_of_element_located(
-                        (By.CSS_SELECTOR, self.NB_SELECTOR)
-                    )
+                    EC.presence_of_element_located((By.CSS_SELECTOR, self.NB_SELECTOR))
                 )
                 logger.debug("Notebook loaded.")
                 return
