@@ -12,7 +12,7 @@ dependencies = [
     "jdaviz",
     "pillow",
     "selenium",
-    "chromedriver-py",
+    "webdriver-manager",
     "requests",
     "nbformat",
     "tqdm",

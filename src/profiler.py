@@ -11,7 +11,6 @@ from pathlib import Path
 from time import perf_counter_ns
 from typing import Any, ClassVar
 
-from chromedriver_py import binary_path  # type: ignore[import-untyped]
 from nbformat import NO_CONVERT, NotebookNode
 from nbformat import read as nb_read
 from PIL import Image
@@ -28,6 +27,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
 from urllib3.exceptions import ReadTimeoutError
+from webdriver_manager.chrome import ChromeDriverManager
 
 from src.executable_cell import ExecutableCell
 from src.jupyterlab_helper import JupyterLabHelper
@@ -232,9 +232,9 @@ class Profiler:
             options.add_argument("--headless=new")
 
         # Launch the browser and create a new page
-        self.driver: Chrome = Chrome(
+        self.driver = Chrome(
             options=options,
-            service=ChromeService(executable_path=binary_path),
+            service=ChromeService(ChromeDriverManager().install()),
         )
 
     def go_to_notebook_url(self) -> None:
@@ -506,8 +506,9 @@ class Profiler:
         """
         Close the Selenium driver.
         """
-        self.driver is not None and hasattr(self.driver, "quit") and self.driver.quit()  # type: ignore[func-returns-value]
-        logger.debug("Driver closed.")
+        if hasattr(self, "driver") and hasattr(self.driver, "quit"):
+            self.driver.quit()
+            logger.debug("Driver closed.")
 
     def get_client_data_received(
         self, timestamp_start: datetime, timestamp_end: datetime
