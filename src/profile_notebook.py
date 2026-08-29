@@ -40,6 +40,5 @@ def profile_notebook(context: ProfilerContext) -> None:
         profiler: Profiler = Profiler(context, jupyterlab_helper)
         profiler.run_notebook()
     finally:
-        profiler.close()
         # Clean up by deleting the uploaded notebook
         jupyterlab_helper.delete_notebook(nb_filename)

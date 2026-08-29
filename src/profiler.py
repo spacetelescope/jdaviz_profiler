@@ -8,9 +8,10 @@ from datetime import datetime
 from functools import cached_property
 from io import BytesIO
 from pathlib import Path
-from time import perf_counter_ns
+from time import perf_counter_ns, sleep
 from typing import Any, ClassVar
 
+import psutil
 from nbformat import NO_CONVERT, NotebookNode
 from nbformat import read as nb_read
 from PIL import Image
@@ -26,7 +27,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 from tqdm import tqdm
 from tqdm.contrib.logging import logging_redirect_tqdm
-from urllib3.exceptions import ReadTimeoutError
+from urllib3.exceptions import ProtocolError, ReadTimeoutError
 from webdriver_manager.chrome import ChromeDriverManager
 
 from src.executable_cell import ExecutableCell
@@ -185,19 +186,22 @@ class Profiler:
         Run the notebook profiling process.
         """
         logger.info("Starting profiling...")
-        self.setup_profiler()
-        self.setup_web_driver()
-        self.go_to_notebook_url()
-        self.setup_network_throttling()
-        self.apply_custom_settings_to_ui()
-        explicit_wait(5)  # Wait a bit to ensure the page is fully loaded
-        self.build_executable_cells_from_ui()
-        with logging_redirect_tqdm([logger]):
-            self.execute_notebook_cells()
-        self.metrics.compute()
-        logger.info(str(self.metrics))
-        self.save_notebook_metrics_to_csv()
-        logger.info("Profiling completed.")
+        try:
+            self.setup_profiler()
+            self.setup_web_driver()
+            self.go_to_notebook_url()
+            self.setup_network_throttling()
+            self.apply_custom_settings_to_ui()
+            explicit_wait(5)  # Wait a bit to ensure the page is fully loaded
+            self.build_executable_cells_from_ui()
+            with logging_redirect_tqdm([logger]):
+                self.execute_notebook_cells()
+            self.metrics.compute()
+            logger.info(str(self.metrics))
+            self.save_notebook_metrics_to_csv()
+            logger.info("Profiling completed.")
+        finally:
+            self.close()
 
     def setup_profiler(self) -> None:
         """
@@ -506,9 +510,43 @@ class Profiler:
         """
         Close the Selenium driver.
         """
-        if hasattr(self, "driver") and hasattr(self.driver, "quit"):
+        if getattr(self, "driver", None) is None:
+            return
+
+        # Try normal close
+        try:
             self.driver.quit()
             logger.debug("Driver closed.")
+        except Exception as e:
+            logger.warning(f"Error while closing driver: {e}")
+
+        # Force kill any remaining Chrome processes
+        try:
+            sleep(1.5)
+            killed_any = False
+            for proc in psutil.process_iter(["pid", "name", "cmdline"]):
+                try:
+                    name: str = proc.info["name"] or ""
+                    if not name.startswith("Google Chrome"):
+                        continue
+                    cmdline = proc.info.get("cmdline") or []
+                    if any(
+                        "--test-type" in arg or "--enable-automation" in arg
+                        for arg in cmdline
+                    ):
+                        proc.kill()
+                        logger.debug(
+                            f"Force-killed Chrome automation process {proc.info['pid']}"
+                        )
+                        killed_any = True
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+            if not killed_any:
+                logger.debug("No Chrome automation processes found to kill")
+        except Exception as e:
+            logger.debug(f"Could not force-kill Chrome: {e}")
+
+        self.driver = None
 
     def get_client_data_received(
         self, timestamp_start: datetime, timestamp_end: datetime
@@ -532,8 +570,8 @@ class Profiler:
             performance_entries: list[dict[str, Any]] = self.driver.get_log(
                 "performance"
             )
-        except ReadTimeoutError:
-            logger.warning("ReadTimeoutError when getting performance logs.")
+        except (ReadTimeoutError, ProtocolError) as e:
+            logger.warning(f"Error getting performance logs: {type(e).__name__}")
             return data_received
         for entry in performance_entries:
             timestamp_entry: datetime = datetime.fromtimestamp(
