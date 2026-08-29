@@ -79,7 +79,7 @@ class Profiler:
     context: ProfilerContext
     jupyterlab_helper: JupyterLabHelper
     screenshots_dir_path: Path | None = field(default=None, repr=False, init=False)
-    driver: Chrome | None = field(default=None, repr=False, init=False)
+    driver: Chrome = field(repr=False, init=False)
     viz_element: VizElement | None = field(default=None, repr=False, init=False)
     executable_cells: tuple[ExecutableCell, ...] = field(
         default_factory=tuple, repr=False, init=False
@@ -522,7 +522,7 @@ class Profiler:
 
         # Force kill any remaining Chrome processes
         try:
-            sleep(0.5)
+            sleep(1.5)
             killed_any = False
             for proc in psutil.process_iter(["pid", "name", "cmdline"]):
                 try:
@@ -536,8 +536,7 @@ class Profiler:
                     ):
                         proc.kill()
                         logger.debug(
-                            f"Force-killed Chrome automation process "
-                            f"{proc.info['pid']}"
+                            f"Force-killed Chrome automation process {proc.info['pid']}"
                         )
                         killed_any = True
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
