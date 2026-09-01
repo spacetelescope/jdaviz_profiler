@@ -263,15 +263,22 @@ class Profiler:
         """
         logger.info("Performing login...")
 
+        sign_in_button = WebDriverWait(self.driver, 3).until(
+            EC.element_to_be_clickable(
+                (By.XPATH, "//a[contains(text(),'Sign in with MyST')]")
+            )
+        )
+        sign_in_button.click()
+
         try:
-            username_field = self.driver.find_element(By.NAME, "username")
-            password_field = self.driver.find_element(By.NAME, "password")
+            username_field = self.driver.find_element(By.ID, "email")
+            password_field = self.driver.find_element(By.ID, "password")
         except NoSuchElementException:
             logger.info("No login required.")
             return
         try:
             login_button = WebDriverWait(self.driver, 10).until(
-                EC.element_to_be_clickable((By.ID, "login_submit"))
+                EC.element_to_be_clickable((By.ID, "btn-login"))
             )
         except TimeoutException:
             raise Exception("Login button not clickable within the specified time.")
