@@ -268,7 +268,8 @@ class Profiler:
                 (By.XPATH, "//a[contains(text(),'Sign in with MyST')]")
             )
         )
-        sign_in_button.click()
+
+        self.driver.execute_script("arguments[0].click();", sign_in_button)
 
         try:
             username_field = self.driver.find_element(By.ID, "email")
